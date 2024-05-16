@@ -35,3 +35,15 @@ Any additional notes or instructions can be added here.
 ## Reference
 
 - [Setting up RabbitMQ with Docker Compose](https://x-team.com/blog/set-up-rabbitmq-with-docker-compose/)
+
+Start multiple servers of same service using 
+
+PORT=3002 node sms-service.js
+PORT=3003 node sms-service.js
+PORT=3004 node sms-service.js
+
+Post Request to create an order:
+
+curl --location 'http://localhost:3000/publish' \
+--header 'Content-Type: application/json' \
+--data '{"id": 4, "description": "cake2"}'

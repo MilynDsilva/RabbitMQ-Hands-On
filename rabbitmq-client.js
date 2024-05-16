@@ -1,50 +1,46 @@
-const amqp = require('amqplib');
+// RabbitMQClient
+const amqplib = require('amqplib');
 
 class RabbitMQClient {
-  constructor(url = 'amqp://localhost') { //TODO url from env
-    this.url = url;
+  constructor() {
     this.connection = null;
     this.channel = null;
   }
 
-  async initialize() {
-    if (!this.connection) {
-      this.connection = await amqp.connect(this.url);
-      this.channel = await this.connection.createChannel();
-    }
+  async connect() {
+    this.connection = await amqplib.connect('amqp://localhost');
+    this.channel = await this.connection.createChannel();
   }
 
-  async createQueue(queue) {
-    await this.initialize();
-    await this.channel.assertQueue(queue, { durable: true });
+  async createExchange(exchangeName, type = 'topic') {
+    await this.channel.assertExchange(exchangeName, type, { durable: true });
   }
 
-  async publish(queue, message) {
-    await this.createQueue(queue);
-    this.channel.sendToQueue(queue, Buffer.from(message), {
-      persistent: true,
-    });
-    console.log(`[x] Sent ${message}`);
+  async createQueue(queueName, options = {}) {
+    await this.channel.assertQueue(queueName, { durable: true, ...options });
   }
 
-  async consume(queue, jobName, jobFunction) {
-    await this.createQueue(queue); // if consumer starts first then it will create the queue
-    this.channel.consume(queue, async (msg) => {
-      if (msg !== null) {
-        console.log(`[x] Received ${msg.content.toString()}`);
-        try {
-          await jobFunction(msg.content.toString());
-          this.channel.ack(msg); // Removes job from queue
-          console.log(`[x] ${jobName} processed successfully`);
-        } catch (err) {
-          console.error(`[!] Error processing ${jobName}: ${err.message}`);
-          // To nack the message to requeue it , uncomment below line
-          // this.channel.nack(msg);
-        }
-      }
-    }, {
-      noAck: false
-    });
+  async bindQueue(queueName, exchangeName, pattern) {
+    await this.channel.bindQueue(queueName, exchangeName, pattern);
+  }
+
+  async sendToExchange(exchangeName, routingKey, message) {
+    // Ensure the exchange exists before publishing
+    await this.createExchange(exchangeName);
+    await this.channel.publish(exchangeName, routingKey, Buffer.from(message), { persistent: true });
+  }
+
+  async consumeQueue(queueName, callback) {
+    await this.channel.consume(queueName, callback, { noAck: false });
+  }
+
+  async ackMessage(msg) {
+    this.channel.ack(msg);
+  }
+
+  async close() {
+    await this.channel.close();
+    await this.connection.close();
   }
 }
 
